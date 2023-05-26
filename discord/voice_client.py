@@ -41,6 +41,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+
 import select
 import socket
 import struct
@@ -792,7 +794,9 @@ class VoiceClient(VoiceProtocol):
 
         self.checked_add('sequence', 1, 65535)
         if encode:
+            # start = time.perf_counter()
             encoded_data = self.encoder.encode(data, self.encoder.SAMPLES_PER_FRAME)
+            # _log.debug(f"[Opus encoding] {round((time.perf_counter() - start)*1000, 2)}ms")
         else:
             encoded_data = data
         packet = self._get_voice_packet(encoded_data)

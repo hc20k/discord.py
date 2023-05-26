@@ -177,7 +177,9 @@ class FFmpegAudio(AudioSource):
     def _spawn_process(self, args: Any, **subprocess_kwargs: Any) -> subprocess.Popen:
         process = None
         try:
+            start = time.perf_counter()
             process = subprocess.Popen(args, creationflags=CREATE_NO_WINDOW, **subprocess_kwargs)
+            _log.debug(f"[Pre-playback] [FFmpeg launch] {round((time.perf_counter() - start)*1000, 2)}ms")
         except FileNotFoundError:
             executable = args.partition(' ')[0] if isinstance(args, str) else args[0]
             raise ClientException(executable + ' was not found.') from None
@@ -210,7 +212,7 @@ class FFmpegAudio(AudioSource):
             # arbitrarily large read size
             data = source.read(8192)
             if not data:
-                self._process.terminate()
+                self._process.stdin.close()
                 return
             try:
                 if self._stdin is not None:
@@ -290,6 +292,7 @@ class FFmpegPCMAudio(FFmpegAudio):
 
     def read(self) -> bytes:
         ret = self._stdout.read(OpusEncoder.FRAME_SIZE)
+        # _log.debug(f"[FFmpeg] read {len(ret)} from stdout")
         if len(ret) != OpusEncoder.FRAME_SIZE:
             return b''
         return ret
@@ -666,6 +669,9 @@ class AudioPlayer(threading.Thread):
         play_audio = self.client.send_audio_packet
         self._speak(SpeakingState.voice)
 
+        got_first_data = False
+        got_first_data_timer = time.perf_counter()
+
         while not self._end.is_set():
             # are we paused?
             if not self._resumed.is_set():
@@ -687,6 +693,9 @@ class AudioPlayer(threading.Thread):
             if not data:
                 self.stop()
                 break
+            elif not got_first_data:
+                _log.debug(f"[TTS] [Got first converted chunk, encoding and sending to socket] {time.perf_counter() - got_first_data_timer}s")
+                got_first_data = True
 
             play_audio(data, encode=not self.source.is_opus())
             next_time = self._start + self.DELAY * self.loops

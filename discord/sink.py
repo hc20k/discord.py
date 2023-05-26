@@ -6,6 +6,7 @@ import queue
 import struct
 import subprocess
 import threading
+import time
 import wave
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Awaitable, BinaryIO, Callable, Dict, List, Optional, Sequence, Tuple, Union
@@ -1157,6 +1158,8 @@ class AudioUnpacker(_mp_ctx.Process):
         if self.decode:
             if packet.ssrc not in self.decoders:
                 self.decoders[packet.ssrc] = OpusDecoder()
+            start = time.perf_counter()
             audio = self.decoders[packet.ssrc].decode(packet.audio)  # type: ignore
+            _log.debug(f"[pre-STT] [Opus packet -> PCM] {round((time.perf_counter() - start)*1000, 2)}ms")
 
         return AudioFrame(audio, packet, None)
